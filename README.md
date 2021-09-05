@@ -11,3 +11,10 @@ Works better with corporate machines.
 Program is "AS IS", and I take no liabilities for any damage it causes.
 
 This is an initial commit, WIP.
+
+# Windows 10 - How to use
+
+Bluetooth pairing + connection is done automatically by the program.
+No unpairing is necessary. Next time automatic connection - already paired state.
+
+Linqpad will offer to download missing nuget packages, say YES to it.
