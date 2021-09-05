@@ -1,4 +1,6 @@
 <Query Kind="Program">
+  <Reference Relative="AudioSwitcher.AudioApi.CoreAudio.dll">&lt;MyDocuments&gt;\LINQPad Queries\GATT\AudioSwitcher.AudioApi.CoreAudio.dll</Reference>
+  <Reference Relative="AudioSwitcher.AudioApi.dll">&lt;MyDocuments&gt;\LINQPad Queries\GATT\AudioSwitcher.AudioApi.dll</Reference>
   <Reference>&lt;RuntimeDirectory&gt;\System.Linq.dll</Reference>
   <Reference>&lt;RuntimeDirectory&gt;\System.Numerics.dll</Reference>
   <Reference>&lt;RuntimeDirectory&gt;\System.Runtime.dll</Reference>
@@ -33,8 +35,8 @@ List<object> gdccontent;
 // https://docs.microsoft.com/en-us/windows/win32/inputdev/virtual-key-codes
 class GearVRController
 {
-	public static LINQPad.Controls.CheckBox DIAG, BTN1, BTN2, BTN3, BTN4, BTN5, BTN6, BTN7;
-	public static LINQPad.Controls.TextBox TB1, TB2, TB3, TB4, TB5, TB6, TB7, TB8, TB9, TB10, TB11, EXCEPTION;
+	public static LINQPad.Controls.CheckBox DIAG, DEBUG, BTN1, BTN2, BTN3, BTN4, BTN5, BTN6, BTN7;
+	public static LINQPad.Controls.TextBox TB1, TB2, TB3, TB4, TB5, TB6, TB7, TB8, TB9, TB10, TB11, INFO;
 	public static LINQPad.Controls.SelectBox SB;
 	
 	private static GearVRController instance;
@@ -56,7 +58,36 @@ class GearVRController
 	
 	[DllImport("user32.dll")]
     static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
+	
+	[StructLayout(LayoutKind.Explicit)]
+	struct BLUETOOTH_ADDRESS
+	{
+	  [FieldOffset(0)]
+	  [MarshalAs(UnmanagedType.I8)]
+	  public Int64 ullLong;
+	  [FieldOffset(0)]
+	  [MarshalAs(UnmanagedType.U1)]
+	  public Byte rgBytes_0;
+	  [FieldOffset(1)]
+	  [MarshalAs(UnmanagedType.U1)]
+	  public Byte rgBytes_1;
+	  [FieldOffset(2)]
+	  [MarshalAs(UnmanagedType.U1)]
+	  public Byte rgBytes_2;
+	  [FieldOffset(3)]
+	  [MarshalAs(UnmanagedType.U1)]
+	  public Byte rgBytes_3;
+	  [FieldOffset(4)]
+	  [MarshalAs(UnmanagedType.U1)]
+	  public Byte rgBytes_4;
+	  [FieldOffset(5)]
+	  [MarshalAs(UnmanagedType.U1)]
+	  public Byte rgBytes_5;
+	};
 
+	[DllImport("BluetoothAPIs.dll", SetLastError = true, CallingConvention = CallingConvention.StdCall)]
+	[return: MarshalAs(UnmanagedType.U4)]
+	static extern UInt32 BluetoothRemoveDevice([param: In, Out] ref BLUETOOTH_ADDRESS pAddress);
 
 	private const int MOUSEEVENTF_MOVE        = 0x0001; /* mouse move */
 	private const int MOUSEEVENTF_LEFTDOWN    = 0x0002; /* left button down */
@@ -99,6 +130,8 @@ class GearVRController
     private static bool volumeUpButton   = false;
     private static bool volumeDownButton = false;
     private static bool NoButton         = false;
+	private static bool touchpadButton_latch = false;
+	private static bool triggerButton_latch  = false;
     private static int  idelta = 0;
     private static int  odelta = 0;
 	
@@ -138,6 +171,7 @@ class GearVRController
 	private static int delta_Y = 0;
 	private static int __wheelPos = 0;
 	private static int wheelPos = 0;
+	private static Windows.Devices.Bluetooth.BluetoothLEDevice device = null;
  	
 
 	private GearVRController() {}
@@ -152,6 +186,16 @@ class GearVRController
 		System.Numerics.Complex cnum = new System.Numerics.Complex(x-157, y-157);
         pos = (int) System.Math.Floor((cnum.Phase * 180 / System.Math.PI) / 360.0 * __c_numberOfWheelPositions);
         return pos;
+	}
+	
+	private void ToggleMic() {
+		AudioSwitcher.AudioApi.CoreAudio.CoreAudioController audioController = new AudioSwitcher.AudioApi.CoreAudio.CoreAudioController();
+		//System.Collections.Generic.IEnumerable<AudioSwitcher.AudioApi.CoreAudio.CoreAudioDevice> devices = await audioController.GetDevicesAsync(AudioSwitcher.AudioApi.DeviceType.Capture, AudioSwitcher.AudioApi.DeviceState.Active);
+		//AudioSwitcher.AudioApi.CoreAudio.CoreAudioDevice device = devices.FirstOrDefault(x => x.IsDefaultDevice);
+		//await device.SetMuteAsync(mute);
+		AudioSwitcher.AudioApi.CoreAudio.CoreAudioDevice capdevice = audioController.GetCaptureDevices(AudioSwitcher.AudioApi.DeviceState.Active).FirstOrDefault(o => o.IsDefaultDevice);
+		capdevice?.Mute(!capdevice.IsMuted);
+		if (capdevice != null) { GearVRController.INFO.Text = capdevice.IsMuted?"Mic muted":"Mic unmuted"; }
 	}
 
 	private void SelectedCharacteristic_ValueChanged(Windows.Devices.Bluetooth.GenericAttributeProfile.GattCharacteristic sender, Windows.Devices.Bluetooth.GenericAttributeProfile.GattValueChangedEventArgs args)
@@ -206,11 +250,20 @@ class GearVRController
 		switch (GearVRController.SB.SelectedIndex) {
 			case 0: // Presentation
 				break;
-			case 1: // Browsing
+			case 1: // Telco
+				if ( touchpadButton && !touchpadButton_latch) { keybd_event((byte)KeysVolumeMute, 0, 0x0000, 0); touchpadButton_latch = true; }
+				if (!touchpadButton &&  touchpadButton_latch) { keybd_event((byte)KeysVolumeMute, 0, 0x0002, 0); touchpadButton_latch = false;}
+				// "C:\WINDOWS\system32\rundll32.exe" shell32.dll,Control_RunDLL mmsys.cpl,,recording
+				if ( triggerButton && !triggerButton_latch) { triggerButton_latch = true; }
+				if (!triggerButton &&  triggerButton_latch) { ToggleMic(); triggerButton_latch = false;}
+				return;
 				break;
-			case 2: // Telco
-				if ( touchpadButton) keybd_event((byte)KeysVolumeMute, 0, 0x0001, 0);
-				if (!touchpadButton) keybd_event((byte)KeysVolumeMute, 0, 0x0002, 0);
+			case 2: // Copy - Paste
+				if ( touchpadButton && !touchpadButton_latch) { keybd_event((byte)0x11, 0, 0x0000, 0); keybd_event((byte)0x43, 0, 0x0000, 0); touchpadButton_latch = true; }
+				if (!touchpadButton &&  touchpadButton_latch) { keybd_event((byte)0x43, 0, 0x0002, 0); keybd_event((byte)0x11, 0, 0x0000, 0); touchpadButton_latch = false;}
+				// "C:\WINDOWS\system32\rundll32.exe" shell32.dll,Control_RunDLL mmsys.cpl,,recording
+				if ( triggerButton && !triggerButton_latch) { keybd_event((byte)0x11, 0, 0x0000, 0); keybd_event((byte)0x56, 0, 0x0000, 0); triggerButton_latch = true; }
+				if (!triggerButton &&  triggerButton_latch) { keybd_event((byte)0x56, 0, 0x0002, 0); keybd_event((byte)0x11, 0, 0x0002, 0); triggerButton_latch = false;}
 				return;
 				break;
 			default:
@@ -288,7 +341,6 @@ class GearVRController
 			}	
             __axisX = axisX;
             __axisY = axisY;
-            //print(delta_X)
             return;
 		}
 		
@@ -358,11 +410,9 @@ class GearVRController
 
         while (dx != 0 || dy != 0) {
             if (dx != 0) {
-                //self.__device.emit(uinput.REL_X, -incx, syn = True)
                 dx += incx;
 			}
             if (dy != 0) {
-                //self.__device.emit(uinput.REL_Y, -incy, syn = True)
                 dy += incy;
 			}
 		}
@@ -373,8 +423,8 @@ class GearVRController
 		if ( GearVRController.setup_characteristic == null ) return;
 		try {
 			while (repeat-- > 0) { await GearVRController.setup_characteristic.WriteValueAsync(Windows.Security.Cryptography.CryptographicBuffer.CreateFromByteArray(value)); }
-		} catch (Exception e) {
-			EXCEPTION.Text = "Exception: write to characteristic " + e.Message;
+		} catch (System.Exception e) {
+			if (GearVRController.DEBUG.Checked) Debug.WriteLine("INFO: write to characteristic " + e.Message);
 		}
 	}
 	
@@ -388,6 +438,10 @@ class GearVRController
 	public void Disconnect()
 	{
 		SendToCharacteristic(new byte[] {0x00, 0x00}, 3);
+		GearVRController.device.Dispose();
+		//BLUETOOTH_ADDRESS Addr = new BLUETOOTH_ADDRESS();
+  		//Addr.ullLong = (Int64) i_vrcontrollerMAC;
+		//GearVRController.BluetoothRemoveLEDevice(ref Addr);
 	}
 
 	private async void Get_Characteristics(Windows.Devices.Bluetooth.GenericAttributeProfile.GattDeviceService myService)
@@ -419,60 +473,67 @@ class GearVRController
 	            var result = await data_characteristic.WriteClientCharacteristicConfigurationDescriptorAsync(Windows.Devices.Bluetooth.GenericAttributeProfile.GattClientCharacteristicConfigurationDescriptorValue.Notify);
 	            if (result == Windows.Devices.Bluetooth.GenericAttributeProfile.GattCommunicationStatus.Success)
 	            {
-					//Debug.WriteLine("Successfully registered for notifications");
+					if (GearVRController.DEBUG.Checked) Debug.WriteLine("Successfully registered for notifications");
 	                data_characteristic.ValueChanged += SelectedCharacteristic_ValueChanged;
 	            }
 	            else
 	            {
-					EXCEPTION.Text = $"Error registering for notifications: {result}";
+					if (GearVRController.DEBUG.Checked) Debug.WriteLine($"Error registering for notifications: {result}");
 	            }
 	        }
-	        catch (Exception ex)
+	        catch (System.Exception ex)
 	        {
 	            // This usually happens when not all characteristics are found
 	            // or selected characteristic has no Notify.
-				//Debug.WriteLine("Exception:" + ex.Message);
 	            await System.Threading.Tasks.Task.Delay(100);
-	            Get_Characteristics(myService); //try again
-	                                            //!!! Add a max try counter to prevent infinite loop!!!!!!!
+	            Get_Characteristics(myService); //try again !!! Add a max try counter to prevent infinite loop!!!!!!!
 	        }
 	    }
 	    else
 	    {
-			EXCEPTION.Text = "Restricted service. Can't read characteristics. Press Control+Shift+F5 before starting program again.";
+			if (GearVRController.DEBUG.Checked) Debug.WriteLine($"Restricted service: Status={CharResult.Status} Can't read characteristics. Press Control+Shift+F5 before starting program again.");
 	    }
 	}
 
 
 	private async void PairingRequestedHandler(Windows.Devices.Enumeration.DeviceInformationCustomPairing sender, Windows.Devices.Enumeration.DevicePairingRequestedEventArgs args)
 	{
+		if (GearVRController.DEBUG.Checked) Debug.WriteLine("PairingRequestedHandler executed");
 	    switch (args.PairingKind)
 	    {
 	        case Windows.Devices.Enumeration.DevicePairingKinds.ConfirmOnly:
 	            // Windows itself will pop the confirmation dialog as part of "consent" if this is running on Desktop or Mobile
 	            // If this is an App for 'Windows IoT Core' where there is no Windows Consent UX, you may want to provide your own confirmation.
+				if (GearVRController.DEBUG.Checked) Debug.WriteLine($"Windows.Devices.Enumeration.DevicePairingKinds.ConfirmOnly");
 	            args.Accept();
 	            break;
 
 	        case Windows.Devices.Enumeration.DevicePairingKinds.ProvidePin:
+				if (GearVRController.DEBUG.Checked) Debug.WriteLine($"Windows.Devices.Enumeration.DevicePairingKinds.ProvidePin");
 	            var collectPinDeferral = args.GetDeferral();
 	            string pin = "0000";
 	            args.Accept(pin);
 	            collectPinDeferral.Complete();
 	            break;
+			
+			default:
+				if (GearVRController.DEBUG.Checked) Debug.WriteLine($"Windows.Devices.Enumeration.DevicePairingKinds = {args.PairingKind}");
+				break;
 	    }
 	}
 			
-	async public void Pair_Connect() // https://stackoverflow.com/questions/35461817/uwp-bluetoothdevice-frombluetoothaddressasync-throws-0x80070002-exception-on-no
+	async public void Pair_Connect() // https://stackoverflow.com/questions/35461817/uwp-bluetoothdevice-frombluetoothaddressasync-throws-0x80070002-INFO-on-no
 	{
-		Windows.Devices.Bluetooth.BluetoothLEDevice device = await Windows.Devices.Bluetooth.BluetoothLEDevice.FromBluetoothAddressAsync(i_vrcontrollerMAC);
+		device = await Windows.Devices.Bluetooth.BluetoothLEDevice.FromBluetoothAddressAsync(i_vrcontrollerMAC);
 		Windows.Devices.Enumeration.DeviceInformation infDev = device.DeviceInformation; //We need this aux object to perform pairing
-	    Windows.Devices.Enumeration.DevicePairingKinds ceremoniesSelected = Windows.Devices.Enumeration.DevicePairingKinds.ConfirmOnly | Windows.Devices.Enumeration.DevicePairingKinds.ProvidePin; //Only confirm pairing, we'll provide PIN from app
+	    Windows.Devices.Enumeration.DevicePairingKinds ceremoniesSelected = Windows.Devices.Enumeration.DevicePairingKinds.ConfirmOnly /*| Windows.Devices.Enumeration.DevicePairingKinds.ProvidePin*/; //Only confirm pairing, we'll provide PIN from app
 	    Windows.Devices.Enumeration.DevicePairingProtectionLevel protectionLevel = Windows.Devices.Enumeration.DevicePairingProtectionLevel.None; //Encryption; //Encrypted connection
 	    Windows.Devices.Enumeration.DeviceInformationCustomPairing customPairing = infDev.Pairing.Custom; //Our app takes control of pairing, not OS
 	    customPairing.PairingRequested += PairingRequestedHandler; //Our pairing request handler
-	    Windows.Devices.Enumeration.DevicePairingResult result = await customPairing.PairAsync(ceremoniesSelected, protectionLevel); //launc pairing
+		if (GearVRController.DEBUG.Checked) Debug.WriteLine("PairingRequestedHandler registered");
+	    Windows.Devices.Enumeration.DevicePairingResult result = await customPairing.PairAsync(ceremoniesSelected, protectionLevel); //launch pairing
 	    customPairing.PairingRequested -= PairingRequestedHandler;
+		if (GearVRController.DEBUG.Checked) Debug.WriteLine("PairingRequestedHandler unregistered");
 	    if ((result.Status == Windows.Devices.Enumeration.DevicePairingResultStatus.Paired) || (result.Status == Windows.Devices.Enumeration.DevicePairingResultStatus.AlreadyPaired))
 	    {
 			Windows.Devices.Bluetooth.GenericAttributeProfile.GattDeviceServicesResult serviceResult = null;
@@ -490,11 +551,11 @@ class GearVRController
 			         if (serviceResult.Status == Windows.Devices.Bluetooth.GenericAttributeProfile.GattCommunicationStatus.Success && serviceResult.Services.Count >= servicesCount)
 			         {
 			             connected = true;
-			             //Debug.WriteLine("Connected in " + tryCount + " tries");
+			             if (GearVRController.DEBUG.Checked) Debug.WriteLine("Connected in " + tryCount + " tries");
 			         }
 			         if (tryCount > 5)//make this larger if faild
 			         {
-			             EXCEPTION.Text = "Failed to connect to device ";
+			             if (GearVRController.DEBUG.Checked) Debug.WriteLine("Failed to connect to device");
 			             return;
 			         }
 			     }
@@ -506,7 +567,7 @@ class GearVRController
 			             //This must be the service that contains the Gatt-Characteristic you want to read from or write to !!!!!!!.
 			             if (service.Uuid.ToString() == "4f63756c-7573-2054-6872-65656d6f7465")
 			             {
-						 	//Debug.WriteLine("Get_Characteristics(service);");
+						 	if (GearVRController.DEBUG.Checked) Debug.WriteLine("Get_Characteristics(service);");
 							Get_Characteristics(service);
 			                break;
 			             }
@@ -516,7 +577,7 @@ class GearVRController
 	    }
 	    else
 	    {
-			EXCEPTION.Text = "pairing failed";
+			if (GearVRController.DEBUG.Checked) Debug.WriteLine($"Pairing failed, status={result.Status}");
 	    }
 	}
 }
@@ -526,15 +587,16 @@ void Main()
 	var dccontent = new List<object>();
 	dc = new DumpContainer (Util.VerticalRun (dccontent)).Dump();
 	dccontent.Add(new LINQPad.Controls.WrapPanel (
-		GearVRController.BTN1 = new LINQPad.Controls.CheckBox("Trigger"),
-		GearVRController.BTN2 = new LINQPad.Controls.CheckBox("Home"),
-		GearVRController.BTN3 = new LINQPad.Controls.CheckBox("Back"),
-		GearVRController.BTN4 = new LINQPad.Controls.CheckBox("Touch"),
-		GearVRController.BTN5 = new LINQPad.Controls.CheckBox("VolumeUp"),
-		GearVRController.BTN6 = new LINQPad.Controls.CheckBox("VolumeDown"),
-		GearVRController.BTN7 = new LINQPad.Controls.CheckBox("NoButton"),
+		GearVRController.BTN1 = new LINQPad.Controls.CheckBox("Trigger"){ Enabled = false },
+		GearVRController.BTN2 = new LINQPad.Controls.CheckBox("Home"){ Enabled = false },
+		GearVRController.BTN3 = new LINQPad.Controls.CheckBox("Back"){ Enabled = false },
+		GearVRController.BTN4 = new LINQPad.Controls.CheckBox("Touch"){ Enabled = false },
+		GearVRController.BTN5 = new LINQPad.Controls.CheckBox("VolumeUp"){ Enabled = false },
+		GearVRController.BTN6 = new LINQPad.Controls.CheckBox("VolumeDown"){ Enabled = false },
+		GearVRController.BTN7 = new LINQPad.Controls.CheckBox("NoButton"){ Enabled = false },
 		new LINQPad.Controls.Button("Power OFF", onClick:(sender) => { GearVRController.getInstance().Disconnect(); }),
-		GearVRController.DIAG = new LINQPad.Controls.CheckBox("Diagnostics" ) { Checked = true }
+		GearVRController.DIAG = new LINQPad.Controls.CheckBox("Diagnostics" ) { Checked = true },
+		GearVRController.DEBUG = new LINQPad.Controls.CheckBox("Debug Messages" ) { Checked = false }
 		));
 	dccontent.Add(new LINQPad.Controls.WrapPanel (
 		new LINQPad.Controls.TextBox("Axis") { Width = "60px" }, GearVRController.TB1 = new LINQPad.Controls.TextBox("") { Width = "60px" },
@@ -551,15 +613,11 @@ void Main()
 		new LINQPad.Controls.TextBox("Magnet") { Width = "60px" }, GearVRController.TB9 = new LINQPad.Controls.TextBox("") { Width = "60px" },
 		GearVRController.TB10 = new LINQPad.Controls.TextBox("") { Width = "60px" },
 		GearVRController.TB11 = new LINQPad.Controls.TextBox("") { Width = "60px" }));
-	dccontent.Add(GearVRController.SB = new LINQPad.Controls.SelectBox(new string[] {"Presentation", "Browsing", "Telco"}));
-	dccontent.Add(GearVRController.EXCEPTION = new LINQPad.Controls.TextBox("") { Width = "1000px" });
+	dccontent.Add(GearVRController.SB = new LINQPad.Controls.SelectBox(new string[] {"Normal", "Telco", "Copy - Paste"}));
+	dccontent.Add(GearVRController.INFO = new LINQPad.Controls.TextBox("") { Width = "850px" });
 
 	GearVRController.SB.Width = (3 + (float)GearVRController.SB.Options [0].ToString().Length / 2) + "em";
-	GearVRController.SB.SelectionChanged += (sender, args) =>
-		{
-			Debug.WriteLine("New mode selected");
-			//GearVRController.SB.SelectedIndex = 0;
-		};
+	GearVRController.SB.SelectionChanged += (sender, args) => { GearVRController.DEBUG.Focus(); };
 	gdccontent = new List<object>();
 	gdccontent.Add(dc);
 	dc.Refresh();
