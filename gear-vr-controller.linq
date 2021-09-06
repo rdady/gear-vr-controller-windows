@@ -59,36 +59,6 @@ class GearVRController
 	[DllImport("user32.dll")]
     static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, int dwExtraInfo);
 	
-	[StructLayout(LayoutKind.Explicit)]
-	struct BLUETOOTH_ADDRESS
-	{
-	  [FieldOffset(0)]
-	  [MarshalAs(UnmanagedType.I8)]
-	  public Int64 ullLong;
-	  [FieldOffset(0)]
-	  [MarshalAs(UnmanagedType.U1)]
-	  public Byte rgBytes_0;
-	  [FieldOffset(1)]
-	  [MarshalAs(UnmanagedType.U1)]
-	  public Byte rgBytes_1;
-	  [FieldOffset(2)]
-	  [MarshalAs(UnmanagedType.U1)]
-	  public Byte rgBytes_2;
-	  [FieldOffset(3)]
-	  [MarshalAs(UnmanagedType.U1)]
-	  public Byte rgBytes_3;
-	  [FieldOffset(4)]
-	  [MarshalAs(UnmanagedType.U1)]
-	  public Byte rgBytes_4;
-	  [FieldOffset(5)]
-	  [MarshalAs(UnmanagedType.U1)]
-	  public Byte rgBytes_5;
-	};
-
-	[DllImport("BluetoothAPIs.dll", SetLastError = true, CallingConvention = CallingConvention.StdCall)]
-	[return: MarshalAs(UnmanagedType.U4)]
-	static extern UInt32 BluetoothRemoveDevice([param: In, Out] ref BLUETOOTH_ADDRESS pAddress);
-
 	private const int MOUSEEVENTF_MOVE        = 0x0001; /* mouse move */
 	private const int MOUSEEVENTF_LEFTDOWN    = 0x0002; /* left button down */
 	private const int MOUSEEVENTF_LEFTUP      = 0x0004; /* left button up */
@@ -260,7 +230,7 @@ class GearVRController
 				break;
 			case 2: // Copy - Paste
 				if ( touchpadButton && !touchpadButton_latch) { keybd_event((byte)0x11, 0, 0x0000, 0); keybd_event((byte)0x43, 0, 0x0000, 0); touchpadButton_latch = true; }
-				if (!touchpadButton &&  touchpadButton_latch) { keybd_event((byte)0x43, 0, 0x0002, 0); keybd_event((byte)0x11, 0, 0x0000, 0); touchpadButton_latch = false;}
+				if (!touchpadButton &&  touchpadButton_latch) { keybd_event((byte)0x43, 0, 0x0002, 0); keybd_event((byte)0x11, 0, 0x0002, 0); touchpadButton_latch = false;}
 				// "C:\WINDOWS\system32\rundll32.exe" shell32.dll,Control_RunDLL mmsys.cpl,,recording
 				if ( triggerButton && !triggerButton_latch) { keybd_event((byte)0x11, 0, 0x0000, 0); keybd_event((byte)0x56, 0, 0x0000, 0); triggerButton_latch = true; }
 				if (!triggerButton &&  triggerButton_latch) { keybd_event((byte)0x56, 0, 0x0002, 0); keybd_event((byte)0x11, 0, 0x0002, 0); triggerButton_latch = false;}
@@ -344,10 +314,9 @@ class GearVRController
             return;
 		}
 		
-		if (triggerButton)
-            { System.Windows.Forms.SendKeys.Send("{LEFT}"); }
-        else
-            { /* System.Windows.Forms.SendKeys.Send("{LEFT}");*/ }
+		//TODO
+		if (      triggerButton && !triggerButton_latch) { mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0); triggerButton_latch = true; }
+		else if (!triggerButton &&  triggerButton_latch) { mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0); triggerButton_latch = false;}
 
         if (homeButton && __volbtn) {
             System.Windows.Forms.SendKeys.Send("{%HOME}");
@@ -439,9 +408,6 @@ class GearVRController
 	{
 		SendToCharacteristic(new byte[] {0x00, 0x00}, 3);
 		GearVRController.device.Dispose();
-		//BLUETOOTH_ADDRESS Addr = new BLUETOOTH_ADDRESS();
-  		//Addr.ullLong = (Int64) i_vrcontrollerMAC;
-		//GearVRController.BluetoothRemoveLEDevice(ref Addr);
 	}
 
 	private async void Get_Characteristics(Windows.Devices.Bluetooth.GenericAttributeProfile.GattDeviceService myService)
