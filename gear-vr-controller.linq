@@ -81,6 +81,17 @@ class GearVRController
 	private const int KeysVolumeUp   = 175; //Keys.VolumeUp
 	private const int KeysVolumeMute = 173; //Keys.VolumeMute (?)
 	
+	private const int KeysArrowLeft = 37;
+	private const int KeysArrowUp   = 38;
+	private const int KeysArrowRight = 39; 
+	private const int KeysArrowDown = 40; 
+	
+	private const int KeysBack = 166; 
+	private const int KeysHome = 172;
+	
+	private const int KEYEVENTF_EXTENDEDKEY = 1;
+	private const int KEYEVENTF_KEYUP = 2;
+	
 	private static int axisX   = 0;
     private static int axisY   = 0;
     private static int accelX  = 0;
@@ -240,10 +251,30 @@ class GearVRController
 				break;
 		}
 		
-		if (touchpadButton && __trig) {
+		if (axisX >= 90 && axisX <= 240 && axisY >= 90 && axisY <= 240 && touchpadButton && __trig) {
             __useWheel = ! __useWheel;
             __useTouch = ! __useTouch;
             __trig = false;
+		}
+		else if (axisX < 90 && axisY > 90 && axisY < 240 && touchpadButton && __trig) {
+            keybd_event((byte)KeysArrowLeft, 0, (byte)KEYEVENTF_EXTENDEDKEY | 0, 0); 
+            __trig = false;
+            keybd_event((byte)KeysArrowLeft, 0, (byte)KEYEVENTF_EXTENDEDKEY | (byte)KEYEVENTF_KEYUP, 0); 
+		}
+		else if (axisX > 240 && axisY > 90 && axisY < 240 && touchpadButton && __trig) {
+            keybd_event((byte)KeysArrowRight, 0, (byte)KEYEVENTF_EXTENDEDKEY | 0, 0); 			
+            __trig = false;
+            keybd_event((byte)KeysArrowRight, 0, (byte)KEYEVENTF_EXTENDEDKEY | (byte)KEYEVENTF_KEYUP, 0); 
+		}
+		else if (axisX > 90 && axisX < 240 && axisY < 90 && touchpadButton && __trig) {
+            keybd_event((byte)KeysArrowUp, 0, (byte)KEYEVENTF_EXTENDEDKEY | 0, 0); 
+            __trig = false;
+            keybd_event((byte)KeysArrowUp, 0, (byte)KEYEVENTF_EXTENDEDKEY | (byte)KEYEVENTF_KEYUP, 0); 
+		}
+		else if (axisX > 90 && axisX < 240 && axisY > 240 && touchpadButton && __trig) {
+            keybd_event((byte)KeysArrowDown, 0, (byte)KEYEVENTF_EXTENDEDKEY | 0, 0); 
+            __trig = false;
+            keybd_event((byte)KeysArrowDown, 0, (byte)KEYEVENTF_EXTENDEDKEY | (byte)KEYEVENTF_KEYUP, 0); 
 		}
         else if (!touchpadButton && !__trig) {
             __trig = true;
@@ -319,13 +350,13 @@ class GearVRController
 		else if (!triggerButton &&  triggerButton_latch) { mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0); triggerButton_latch = false;}
 
         if (homeButton && __volbtn) {
-            System.Windows.Forms.SendKeys.Send("{%HOME}");
+            keybd_event((byte)KeysHome, 0, 0, 0); 
             __volbtn = false;
             return;
 		}
 
         if (backButton && __volbtn) {
-            System.Windows.Forms.SendKeys.Send("{%LEFT}");
+            keybd_event((byte)KeysBack, 0, 0, 0); 
             __volbtn = false;
             return;
 		}
