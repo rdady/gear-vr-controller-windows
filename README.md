@@ -14,6 +14,9 @@ This is an initial commit, WIP.
 
 # Windows 10 - How to use
 
+In the line beginning with <pre><code>UInt64 i_vrcontrollerMAC</code></pre> be sure to have your MAC adress!
+Use calc.exe on Windows, e.g. MAC 2C:BA:BA:25:6A:A1 written without semicolons HEXADECIMAL 2CBABA256AA1 given in DECIMAL 49180498553505.
+
 Bluetooth pairing + connection is done automatically by the program.
 No unpairing is necessary. Next time automatic connection - already paired state.
 
